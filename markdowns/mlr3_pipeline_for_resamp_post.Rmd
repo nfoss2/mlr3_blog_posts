@@ -1,0 +1,73 @@
+---
+title: 'mlr3 Pipelines for Resampling: An Introduction'
+author: "Natalie Foss"
+date: "2022-09-19"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Introduction
+
+The purpose of this post is to introduce you to `mlr3` pipelines for resampling and give an example the best practice methods, using the `palmer penguins` dataset. `palmer penguins` is a built in task described as "classification data to predict the species of penguins". Read more about the dataset [here](https://mlr3.mlr-org.com/reference/mlr_tasks_penguins.html).
+
+## Review
+
+-   Read about basic setup [here](?)
+
+-   Read about learners [here](?)
+
+-   Read about resampling without pipelines [here](?)
+
+To prepare your environment run the code in the following chunk:
+
+```{r}
+library("mlr3")
+```
+
+## Why Use Pipelines?
+
+"Pipelines" or "workflows" can help automate the machine learning process. Imagine you are creating a model and you go through the process of creating objects for the task, learner, resampling method, performance measure, etc. then you coordinate the training testing, resampling, and measuring the performance,. Then want to change the learner and do it again, you would need to rerun all of the lines of code after you defined the learner or you would get errors. Pipeline abstract this tedium.
+
+## PipeOps
+
+`mlr3` pipelines are made from "building blocks" called `PipeOps`.
+
+```{r}
+# install.packages("mlr3pipelines")
+library("mlr3pipelines")
+list(mlr_pipeops$keys())
+```
+
+`PipeOps` are initialized using the sugar function `po()`. Example:
+
+```{r}
+poLearner = po("learner", learner = lrn("classif.rpart"))
+```
+
+## Resampling With Pipelines
+
+For this example we will replicate the resampling process outlined in the [resampling post](?).
+
+-   task: `penguins`
+
+-   learner: `classif.rpart`
+
+-   resampling method: `cv` (10 folds)
+
+-   performance measure: `classif.ce`
+
+First we create the task like usual:
+
+```{r}
+task = tsk("penguins")
+```
+
+```{r}
+poLearner = po("learner", learner = lrn("classif.rpart"))
+poResample = po("re")
+```
+
+**Ask Lars**: why would you do regular resampling with pipelines since the resampling is outside of the pipeline so you make the learner into a pipeop learner into a graph just to make it a graph learner.

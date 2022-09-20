@@ -1,0 +1,86 @@
+---
+title: 'mlr3 Resampling: An Introduction'
+author: "Natalie Foss"
+date: "2022-09-19"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Introduction
+
+The purpose of this post is to introduce you to `mlr3` resampling and give an example of how to train a model with resampling (showing the best practice methods), using the `palmer penguins` dataset. `palmer penguins` is a built in task described as "classification data to predict the species of penguins". Read more about the dataset [here](https://mlr3.mlr-org.com/reference/mlr_tasks_penguins.html).
+
+This blog post picks up from the previous [post](?) If you do not wish to read that post, this code chunk will get you up to speed (though we recommend you skim it).
+
+```{r}
+library("mlr3")
+task = tsk("penguins")
+learner = lrn("classif.rpart")
+measure = msr("classif.ce")
+```
+
+## Review
+
+In the last post we saw how depending on the random seed we can get performance estimates that vary widely:
+
+```{r}
+set.seed(3)
+splits = partition(task, ratio = 0.8, cat_col="species")
+learner$train(task, splits$train)
+prediction = learner$predict(task, splits$test)
+prediction$score(measure)
+```
+
+```{r}
+set.seed(22)
+splits = partition(task, ratio = 0.8, cat_col="species")
+learner$train(task, splits$train)
+prediction = learner$predict(task, splits$test)
+prediction$score(measure)
+```
+
+In order to report the accurate predictive performance of your model, you need resampling.
+
+## Resampling methods
+
+Similar to learners and performance measures, there are many popular resampling method implemented. You read about the options [here](https://mlr-org.com/resamplings.html), or just view them:
+
+```{r}
+as.data.table(mlr_resamplings)
+```
+
+Each resampling method has a set of parameters (0, 1, 2). To view the parameters and other metaa-information:
+
+```{r}
+rsmp("bootstrap")$param_set
+```
+
+Cross Validation is the resampling method we will use in this example, read about it [here](https://towardsdatascience.com/cross-validation-in-machine-learning-72924a69872f) (called k-fold cross validation).
+
+To initialize the resampling object we use the sugar function `rsmp()`. We specify any parameters that we want different than the defaults here.
+
+```{r}
+cv = rsmp("cv", folds=10)
+```
+
+Now lets perform the resampling. We will set `store_models` to TRUE so we can look at individual models later (this defaults to FALSE to limit memory consumption).
+
+```{r}
+rr = resample(task, learner, cv, store_models = TRUE)
+rr
+```
+
+Now for the moment of truth, we can look at the performance **aggregated** over all resamplings.
+
+```{r}
+rr$aggregate(measure)
+```
+
+Compare this classification error to the ones from the review section (0.1014493 and 0.01449275). It turns out that the true performance is between these values.
+
+Learn about how to use pipelines to make resampling simpler [here](?).
+
+Or learn about benchmarking and how it can help you compare the performance of different learners and different tasks [here](?).
