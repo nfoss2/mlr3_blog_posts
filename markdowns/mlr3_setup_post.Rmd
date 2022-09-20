@@ -2,7 +2,7 @@
 title: 'mlr3 Set-Up: An Introduction'
 author: "Natalie Foss"
 date: "2022-09-18"
-output: pdf_document
+output: html_document
 ---
 
 ```{r setup, include=FALSE}
@@ -12,6 +12,14 @@ knitr::opts_chunk$set(echo = TRUE)
 # Introduction
 
 This blog post will introduce you to `mlr3` and give an example of how to setup your `mlr3` project, showing the best practice methods using the `palmer penguins` dataset. `palmer penguins` is a built in task described as "classification data to predict the species of penguins". Read more about the dataset [here](https://mlr3.mlr-org.com/reference/mlr_tasks_penguins.html).
+
+## Helpful Links
+
+-   Comprehensive R Setup: [link](https://bookdown.org/yih_huynh/Guide-to-R-Book/what-to-download.html) (Our favorite)
+
+-   R CRAN page: [link](https://cran.r-project.org/)
+
+-   Rstudio: [link](https://www.rstudio.com/products/rstudio/download/)
 
 ## Basic Setup
 

@@ -1,0 +1,31 @@
+---
+title: 'mlr3 Benchmarking: An Introduction'
+author: "Natalie Foss"
+date: "2022-09-20"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Introduction
+
+The purpose of this post is to introduce you to `mlr3` benchmarking and give an example of how to benchmark with different learners (showing the best practice methods), using the \`palmer penguins\` dataset. \`palmer penguins\` is a built in task described as "classification data to predict the species of penguins". Read more about the dataset [here](https://mlr3.mlr-org.com/reference/mlr_tasks_penguins.html).
+
+This blog post picks up from the previous [post](?). If you do not wish to read that post, this code chunk will get you up to speed (though we recommend you skim it).
+
+```{r}
+library("mlr3")
+task = tsk("penguins")
+learner = lrn("classif.rpart")
+measure = msr("classif.ce")
+```
+
+## What is Benchmarking?
+
+Imagine you have one or more tasks that you want to train models on. You may not be sure which learner would be best for the task(s). Benchmarking is an automated way of training multiple different learners on one or more tasks.
+
+## Review
+
+Previous posts discussed the reasons resampling is important in getting an accurate performance estimate for your model. In this post we will extend this idea to benchmarking.
