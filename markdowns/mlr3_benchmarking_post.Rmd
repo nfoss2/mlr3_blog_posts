@@ -29,3 +29,21 @@ Imagine you have one or more tasks that you want to train models on. You may not
 ## Review
 
 Previous posts discussed the reasons resampling is important in getting an accurate performance estimate for your model. In this post we will extend this idea to benchmarking.
+
+## Pipelines for Benchmarking
+
+`mlr3` pipelines are made from "building blocks" called `PipeOps`.
+
+```{r}
+# install.packages("mlr3pipelines")
+library("mlr3pipelines")
+list(mlr_pipeops$keys())
+```
+
+`PipeOps` are initialized using the sugar function `po()`. Example:
+
+```{r}
+poLearner = po("learner", learner = lrn("classif.rpart"))
+```
+
+## Benchmarking With Pipelines

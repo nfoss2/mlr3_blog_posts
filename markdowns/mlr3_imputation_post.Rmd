@@ -9,22 +9,105 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## R Markdown
+# Introduction {#sec-introduction}
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+This post is a part of a series about `mlr3`, see the other posts:
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+-   Create your first R Project: [link](https://nfoss2.github.io/mlr3_first_project_post)
 
-```{r cars}
-summary(cars)
+-   Learn the right way to train simple models: [link](https://nfoss2.github.io/mlr3_models_post)
+
+-   Learn how to impute missing values with pipelines (this post)
+
+The purpose of this post is to introduce you to `mlr3` imputation and give an example of how to impute missing values using pipelines (showing the best practice methods), using the `palmer penguins` dataset. `palmer penguins` is a built in task described as "classification data to predict the species of penguins". Read more about the dataset [here](https://mlr3.mlr-org.com/reference/mlr_tasks_penguins.html).
+
+## Set Up the Environment {#sec-set-up-the-environment}
+
+To follow along with this post you will to run the following code chunk:
+
+```{r}
+set.seed(78)
+# install.packages("mlr3")
+library("mlr3")
+
+# create task object
+task = tsk("penguins")
+
+# create a resampling object
+cv = rsmp("cv", folds=10)
+
+# create a performance measure object
+measure = msr("classif.ce")
 ```
 
-## Including Plots
+## Missing Values {#sec-missing-values}
 
-You can also embed plots, for example:
+Many data sets have missing values, this can cause issues with some learners. To see if your data set has missing values use `$missings()`
 
-```{r pressure, echo=FALSE}
-plot(pressure)
+```{r}
+task$missings()
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+## What is Imputation? {#sec-what-is-imputation}
+
+**Imputation** is a method of identifying and handling (removing or replacing) missing values in a data set.
+
+There are many different kinds of imputation, most have `mlr3` implementations. Short explanations of each are in this table.
+
+| Imputation Method | Description                                                                                                                                                            | Parameters                    | Link to Docs                                                                                   |
+|-------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------|------------------------------------------------------------------------------------------------|
+| "imputeconstant"  | Replaces all missing values with a constant.                                                                                                                           | `constant`                    | Read more [here](https://mlr3pipelines.mlr-org.com/reference/mlr_pipeops_imputeconstant.html). |
+| "imputehist"      | Replaces all missing values from a histogram.                                                                                                                          |                               | Read more [here](https://mlr3pipelines.mlr-org.com/reference/mlr_pipeops_imputehist.html).     |
+| "imputelearner"   | Replaces all missing values by fitting a learner.                                                                                                                      | `learner`                     | Read more [here](https://mlr3pipelines.mlr-org.com/reference/mlr_pipeops_imputelearner.html).  |
+| "imputemean"      | Replaces all numerical missing values with the mean or the column.                                                                                                     |                               | Read more [here](https://mlr3pipelines.mlr-org.com/reference/mlr_pipeops_imputemean.html).     |
+| "imputemedian"    | Replaces all numerical missing values with the median or the column.                                                                                                   |                               | Read more [here](https://mlr3pipelines.mlr-org.com/reference/mlr_pipeops_imputemedian.html).   |
+| "imputemode"      | Replaces all numerical missing values with the mode or the column.                                                                                                     |                               | Read more [here](https://mlr3pipelines.mlr-org.com/reference/mlr_pipeops_imputemode.html).     |
+| "imputeoor"       | Replaces all numerical missing values with constant values shifted below the minimum or above the maximum. This method is useful in the context of tree-based methods. | `min`, `offset`, `multiplier` | Read more [here](https://mlr3pipelines.mlr-org.com/reference/mlr_pipeops_imputeoor.html).      |
+| "imputesample"    | Replaces all numerical missing values by sampling from the non-missing training data.                                                                                  |                               | Read more [here](https://mlr3pipelines.mlr-org.com/reference/mlr_pipeops_imputesample.html).   |
+
+: Imputation methods
+
+## Create Pipeline {#sec-create-pipeline}
+
+```{r}
+# install.packages("mlr3pipelines")
+library("mlr3pipelines")
+```
+
+For this post we will use a pipeline to automate the process, read about pipelines [here](https://mlr3book.mlr-org.com/pipelines.html). We will start by creating the necessary `pipeOps`.
+
+1.  An Imputation method - for this example we will use `imputesample` (impute features by sampling).
+2.  A learner - for this example we will use `classif.rpart` (decision tree).
+
+```{r}
+# imputation method
+poImpute = po("imputesample")
+
+# learner
+poLearner = po("learner", learner = lrn("classif.rpart"))
+```
+
+Next we will create the graph that will impute features then train the learner
+
+```{r}
+graph = poImpute %>>% poLearner
+graph$plot()
+```
+
+The next step is to make the graph into a graph learner so that we can use a resampling method.
+
+```{r}
+grlrn = as_learner(graph)
+```
+
+Now for the training step
+
+```{r}
+rr = resample(task, grlrn, cv)
+```
+
+Now that the training is complete we can see the performance of the model.
+
+```{r}
+rr$aggregate(measure)
+```

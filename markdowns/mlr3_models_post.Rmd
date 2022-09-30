@@ -1,0 +1,280 @@
+---
+title: 'mlr3 Models: An Introduction'
+author: "Natalie Foss"
+date: "2022-09-19"
+output:
+  html_document: 
+    output_dir: './htmls/'
+  word_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Introduction {#sec-introduction}
+
+This post is a part of a series about `mlr3`, see the other posts:
+
+-   Create your first R Project: [link](https://nfoss2.github.io/mlr3_first_project_post)
+
+-   Learn the right way to train simple models (this post)
+
+-   learn how to impute missing values with mlr3 pipelines: [link](https://nfoss2.github.io/mlr3_imputation_post)
+
+The purpose of this post is to introduce you to `mlr3` learners and give an example of how to train a model (showing the best practice methods), using the `palmer penguins` dataset. `palmer penguins` is a built in task described as "classification data to predict the species of penguins". Read more about the dataset [here](https://mlr3.mlr-org.com/reference/mlr_tasks_penguins.html).
+
+## Setup {#sec-setup}
+
+The first step to using the `mlr3` package is to load in the library. In this blog post whenever you see `library()` and you have not previously installed the package, run `install.packages()`.
+
+```{r}
+# install.packages("mlr3")
+library("mlr3")
+# setting a seed will ensure your output matches the post output!
+set.seed(3)
+```
+
+The second step of this machine learning process is to load the dataset. In `mlr3` data sets are stored in objects called tasks. Tasks contain lots of meta information that is useful for the learners (like which column is the response). Initializing the task is very easy since `penguins` is a built in task. The sugar function `tsk()` can be called like so:
+
+```{r}
+task = tsk("penguins")
+```
+
+## Get to Know the Data {#sec-get-to-know-the-data}
+
+It is important to note several things about your data:
+
+1.  Response type - this is important because the learner you pick will need to be compatible with this type
+2.  Feature types - this is important because learners, performance measures, and more have to be compatible with the feature types of your data. We will will go over how to verify this in [this](#sec-model-performance) section
+3.  Missing values - as with 1 and 2, this is important because certain learners, performance measures and more don't allow for missing values. [Imputation](https://mlr3book.mlr-org.com/pipelines.html#imputation-pipeopimpute) can be used in these cases.
+
+Penguins automatically picks the "species" column as the response. In `mlr3` the response/column you hope to predict is called the target.
+
+```{r}
+task$col_roles$target
+```
+
+The following columns are identified as the features of the task.
+
+```{r}
+task$col_roles$feature
+```
+
+We can look at the data types of all of these columns by printing out the summary of the task:
+
+```{r}
+task
+```
+
+Since the target data type is `factor` the task defaulted to `TaskClassif`, however, if the target data type was `numeric` it would have defaulted to `TaskRegr`. We go over how to change this in a [post](?) about encoding.
+
+To see if there are missing values in the data set we use the function `missings()` that gives the number of missing values per column.
+
+```{r}
+task$missings()
+```
+
+For the purposes of this post we won't worry about the missing values, however, this topic is discussed in a [post](https://nfoss2.github.io/mlr3_imputation_post) about imputation.
+
+## Learner Setup {#sec-learner-setup}
+
+Learners are the `mlr3` object that encapsulates many popular machine learning algorithms. Each learner has a `$train()` and `$predict()` function that allows you to easily make use of these algorithms. You will want to select from the pool of learners that are specialized for the type of task you have (for this example recall the task type is `TaskClassif`. We can see all available classification learners like so:
+
+```{r}
+mlr_learners$keys("classif")
+```
+
+Note: to see other types of learners replace "classif" with one of: "clust", "dens", "regr", or "surv".
+
+We will use the decision tree model `classif.rpart`, read about it in its [documentation](https://mlr3.mlr-org.com/reference/mlr_learners_classif.rpart.html) or this [article](https://towardsdatascience.com/decision-trees-explained-3ec41632ceb6). To initialize the learner use the sugar function `lrn()`.
+
+```{r}
+learner = lrn("classif.rpart")
+```
+
+## Important Notes on Training Models {#sec-important-notes-on-training-models}
+
+You may be tempted train the learner on the data right now, however, it is important to consider how we will measure the performance of our model. If we were to train the model on all available data then we would not have leftover data to test the `predict()` function. For the sake of demonstration, [this section](#sec-data-leakage-demo) shows why you should not measure the performance on the data used for training.
+
+Additionally, if you split your data into training and testing subsets then it is possible to get a "lucky" or "unlucky" split that will cause you to over or underestimate the performance of you model. For the sake of demonstration, [this section](#sec-train-and-test-split) shows how that can happen.
+
+The best practice way of training a model and estimating its predictive performance is to use a resampling method.
+
+## Resampling Methods {#sec-resampling-methods}
+
+Similar to learners and performance measures, there are many popular resampling methods implemented. Read a short explanation and a definition of the parameters below.
+
+### Bootstrap ("bootstrap") {#sec-bootstrap}
+
+**Bootstraping** is a method that samples from the dataset with replacement. Its parameters can be found by running `rsmp("bootstrap")$param_set`.
+
+Parameters:
+
+-   ratio - Ratio of observations to put into the training set. (for smaller data sets 90-100, for very large data sets 50-90)
+
+-   repeats - Number of repetitions. (minimum should be around 20-30)
+
+Read more [here](https://machinelearningmastery.com/a-gentle-introduction-to-the-bootstrap-method/).
+
+### K-fold Cross Validation ("cv") {#sec-k-fold-cross-validation}
+
+**K-fold Cross Validation** is a method that splits the data into k equally sized samples (folds) and for k iterations treats a different fold as the test set. Its parameters can be found by running `rsmp("cv")$param_set`.
+
+Parameters:
+
+-   folds - number of equally sized samples to split the data into. This term also determines the number of iterations. Examples: `folds=2` would split the data into two 50% samples, `folds=4` would split the data into four 25% samples, etc. (common practice is to set folds between 3-10)
+
+Read more [here](https://machinelearningmastery.com/k-fold-cross-validation/).
+
+### Holdout ("holdout") {#sec-holdout}
+
+**Holdout** is a method that is equivalent to creating a train and test set. Its parameters can be found by running `rsmp("holdout")$param_set`.
+
+Parameters:
+
+-   ratio - the percentage of the data to put into the training set. (default is 0.67, common alternative is 0.8)
+
+### Insample Resampling ("insample") {#sec-insample-resampling}
+
+**Insample Resampling** is a method that uses all data points as training and test sets. It has no parameters.
+
+### Leave-one-out ("loo") {#sec-leave-one-out}
+
+**Leave-one-out** is a method that uses one data point as the test set for each iteration, it is identical to cross validation if you set the fold the same size as the number of observations. It has no parameters.
+
+Read more [here](https://machinelearningmastery.com/loocv-for-evaluating-machine-learning-algorithms/).
+
+### Repeated Cross Validation ("repeated_cv") {#sec-repeated-cross-validation}
+
+**Repeated Cross Validation** is a method that is equivalent to cross validation repeated several times. Its parameters can be found by running `rsmp("repeated_cv")$param_set`.
+
+Parameters:
+
+-   folds - number of equally sized samples to split the data into. This term also determines the number of iterations. Examples: `folds=2` would split the data into two 50% samples, `folds=4` would split the data into four 25% samples, etc. (common practice is to set folds between 3-10)
+
+-   repeats - number of times cross validation will be run. (default is 10)
+
+Read more [here](https://machinelearningmastery.com/repeated-k-fold-cross-validation-with-python/#:~:text=Repeated%20k%2Dfold%20cross%2Dvalidation%20provides%20a%20way%20to%20improve,all%20folds%20from%20all%20runs.).
+
+## Using Resampling to Train a Model {#sec-using-resampling-to-train-a-model}
+
+Cross Validation is the resampling method we will use in this example.
+
+To initialize the resampling object we use the sugar function `rsmp()`. We specify any parameters that we want different than the defaults here.
+
+```{r}
+cv = rsmp("cv", folds=10)
+```
+
+### Initiating the Training {#sec-initiating-the-training}
+
+Now lets perform the resampling. We will set `store_models` to TRUE so we can look at individual models later (this defaults to FALSE to limit memory consumption).
+
+```{r}
+rr = resample(task, learner, cv, store_models = TRUE)
+rr
+```
+
+### Model Visualization {#sec-model-visualization}
+
+We can visualize the predictions of individual folds with `autoplot()`:
+
+```{r}
+#install.packages("mlr3viz")
+library("mlr3viz")
+
+autoplot(rr$predictions(predict_sets = "test")[[1]])
+```
+
+### Model Performance {#sec-model-performance}
+
+Since this is a classification problem we can get the confusion matrix which will give us an idea of how well the model performed. The confusion matrix shows how many data points were correctly and incorrectly classified. The diagonal values denote the correct classifications and all other values denote incorrect classifications. Read more about confusion matrices [here](https://machinelearningmastery.com/confusion-matrix-machine-learning/). The following snippet of code shows how to print the confusion matrix for individual folds.
+
+```{r}
+rr$predictions(predict_sets = "test")[[1]]$confusion
+```
+
+While the confusion matrix shows the model's performance generally, we can quantify the predictive performance of our model by calling `$score()`. There are several different scoring methods to choose from (filtering here by classification measures).
+
+```{r}
+as.data.table(mlr_measures$keys("classif"))
+```
+
+Note: to see other types of learners replace "classif" with one of: "clust", "dens", "regr", or "surv".
+
+For this example we will use classification error, read more about this measure in the [documentation](https://mlr3.mlr-org.com/reference/mlr_measures_classif.ce.html).
+
+```{r}
+measure = msr("classif.ce")
+rr$aggregate(measure)
+```
+
+Since we have done resampling on this data we can be fairly comfortable that this is an accurate representation of how the model performs on data it did not train on. Compare this score to the scores in each of the demos.
+
+## Data Leakage Demo {#sec-data-leakage-demo}
+
+This demo shows the danger of training and testing on the same set of data.
+
+Lets train the model on all available data (leaving out a few rows for demonstration purposes).
+
+```{r}
+learner$train(task, row_ids = 1:300)
+learner$model
+```
+
+Now we have this model (decision tree) that was trained on all of the data and we can now see the predictions on the same set of data.
+
+```{r}
+prediction = learner$predict(task, row_ids = 1:300)
+```
+
+Now to measure the performance (using classification error)
+
+```{r}
+measure = msr("classif.ce")
+prediction$score(measure)
+```
+
+This means that the model we created predicted the incorrect class only 2.67% of the time. Now if you had plans to use this model you might report that the model has a 2.67% classification error and put the model into production.
+
+For the demonstration, let's pretend that a set of new data has come in and you wish to use the model you created.
+
+```{r}
+new_predictions = learner$predict(task, row_ids = 300:344)
+```
+
+You have created these new predictions and you expect the classification error to be around 2.67%, lets see if it really is:
+
+```{r}
+new_predictions$score(measure)
+```
+
+Unfortunately, you would have been very wrong. The classification error on this new data is 22.22%, nearly 10 times what you expected.
+
+Read more about [data leakage](https://machinelearningmastery.com/data-leakage-machine-learning/) here.
+
+## Train and Test Split Demo {#sec-train-and-test-split}
+
+For the reasons demonstrated in [this section](#sec-data-leakage-demo), using train and test splits is can result inn a more accurate performance estimate. This section will show why train and test splits can sometimes result in inaccurate performance estimates because of "lucky" and "unlucky" splits.
+
+The following two code snippets show two model training in exactly the same way with different random seeds. The performance of the two models are vastly different, however.
+
+```{r}
+set.seed(3)
+splits = partition(task, ratio = 0.8, cat_col="species")
+learner$train(task, splits$train)
+prediction = learner$predict(task, splits$test)
+prediction$score(measure)
+```
+
+```{r}
+set.seed(22)
+splits = partition(task, ratio = 0.8, cat_col="species")
+learner$train(task, splits$train)
+prediction = learner$predict(task, splits$test)
+prediction$score(measure)
+```
+
+This is a massive difference in classification error. In the first model roughly 10% of the test set was incorrectly classified and in the second model only \~1.5% of the test set was incorrectly classified. Now we have no idea which result is an accurate representation of the model performance on this task. The solution to this problem is resampling.
