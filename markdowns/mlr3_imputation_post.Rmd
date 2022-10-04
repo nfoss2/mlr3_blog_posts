@@ -55,7 +55,7 @@ task$missings()
 There are many different kinds of imputation, most have `mlr3` implementations. Short explanations of each are in this table.
 
 | Imputation Method | Description                                                                                                                                                            | Parameters                    | Link to Docs                                                                                   |
-|-------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------|------------------------------------------------------------------------------------------------|
+|-------------|--------------------------------|-------------|----------------|
 | "imputeconstant"  | Replaces all missing values with a constant.                                                                                                                           | `constant`                    | Read more [here](https://mlr3pipelines.mlr-org.com/reference/mlr_pipeops_imputeconstant.html). |
 | "imputehist"      | Replaces all missing values from a histogram.                                                                                                                          |                               | Read more [here](https://mlr3pipelines.mlr-org.com/reference/mlr_pipeops_imputehist.html).     |
 | "imputelearner"   | Replaces all missing values by fitting a learner.                                                                                                                      | `learner`                     | Read more [here](https://mlr3pipelines.mlr-org.com/reference/mlr_pipeops_imputelearner.html).  |
@@ -72,26 +72,52 @@ There are many different kinds of imputation, most have `mlr3` implementations. 
 ```{r}
 # install.packages("mlr3pipelines")
 library("mlr3pipelines")
+# install.packages("e1071") # for `classif.naive_bayes`
+library(e1071)
+# install.packages("mlr3learners")
+library(mlr3learners)
 ```
 
 For this post we will use a pipeline to automate the process, read about pipelines [here](https://mlr3book.mlr-org.com/pipelines.html). We will start by creating the necessary `pipeOps`.
 
 1.  An Imputation method - for this example we will use `imputesample` (impute features by sampling).
-2.  A learner - for this example we will use `classif.rpart` (decision tree).
+
+2.  Two learners
+
+    a\. `classif.rpart` - This learner can accomadate with missing values, see an example of its usage in this [post](https://nfoss2.github.io/mlr3_models_post).
+
+    b\. `classif.naive_bayes` - This learner cannot accommodate missing values. If the missing data in `penguins` was not imputed we would not be able to use this learner.
 
 ```{r}
 # imputation method
 poImpute = po("imputesample")
 
-# learner
-poLearner = po("learner", learner = lrn("classif.rpart"))
+# learners
+poRPLrn = po("learner", learner = lrn("classif.rpart"), id="rpart")
+poNBLrn = po("learner", learner = lrn("classif.naive_bayes"), id="n_b")
 ```
 
-Next we will create the graph that will impute features then train the learner
+Next we will create the graph that will impute features then train the learner. We will create a branch to specify to two different paths (no imputation -\> `classif.rpart` learner and imputation -\> `classif.naive_bayes` learner). The last step of the graph is to "unbranch". Then we will be able to compare the performance of each path by specifying the branch to run.
 
 ```{r}
-graph = poImpute %>>% poLearner
+# branch options
+options = c("nothing", "impute")
+
+graph = po("branch", options) %>>% 
+  gunion(list(
+    poRPLrn, 
+    poImpute %>>% poNBLrn)) %>>%
+  po("unbranch", options)
+
 graph$plot()
+```
+
+## Test imputation vs. No Imputation
+
+We will specify that we want to graph to run the no imputation branch "nothing".
+
+```{r}
+graph$param_set$values$branch.selection = "nothing"
 ```
 
 The next step is to make the graph into a graph learner so that we can use a resampling method.
@@ -100,7 +126,7 @@ The next step is to make the graph into a graph learner so that we can use a res
 grlrn = as_learner(graph)
 ```
 
-Now for the training step
+Now for the training step:
 
 ```{r}
 rr = resample(task, grlrn, cv)
@@ -111,3 +137,14 @@ Now that the training is complete we can see the performance of the model.
 ```{r}
 rr$aggregate(measure)
 ```
+
+We can repeat these steps after specifying that we want to graph to run the imputation branch "impute".
+
+```{r}
+graph$param_set$values$branch.selection = "impute"
+grlrn = as_learner(graph)
+rr = resample(task, grlrn, cv)
+rr$aggregate(measure)
+```
+
+We can see that in this case the impute branch had better performance (0.0204 classification error vs. 0.0553 classification error). Many learners cannot accommodate missing values (see [this list](https://mlr-org.com/learners.html) and look for `missings` in properties for those that can) so knowing how to impute these missing values can allow you to explore more models and maybe even get better performance.
